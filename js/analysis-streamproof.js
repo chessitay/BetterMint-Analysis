@@ -2070,14 +2070,21 @@
     function addMoveIndicator(square, color, evalText = null) {
       const squareElement = document.querySelector(".square[data-square='" + square + "']");
       if (!squareElement) return;
+
+      const existing = squareElement.querySelectorAll('.move-indicator').length;
+      const offset = existing * 10; // stack indicators horizontally
+
       const indicator = document.createElement('div');
       indicator.className = 'move-indicator';
       indicator.style.backgroundColor = color;
+      indicator.style.left = (2 + offset) + 'px';
       squareElement.appendChild(indicator);
+
       if (evalText !== null) {
         const label = document.createElement('div');
         label.className = 'eval-label';
         label.textContent = evalText;
+        label.style.left = (12 + offset) + 'px';
         squareElement.appendChild(label);
       }
     }
