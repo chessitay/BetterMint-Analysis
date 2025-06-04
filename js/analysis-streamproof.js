@@ -267,6 +267,29 @@
         border-radius: 10%;
       }
 
+      .move-indicator {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        top: 2px;
+        left: 2px;
+        border-radius: 2px;
+        z-index: 4;
+        pointer-events: none;
+      }
+
+      .eval-label {
+        position: absolute;
+        top: 2px;
+        left: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        color: white;
+        text-shadow: 0 0 2px rgba(0,0,0,0.7);
+        z-index: 4;
+        pointer-events: none;
+      }
+
       .controls-container {
         width: 100%;
         max-width: 480px;
@@ -525,7 +548,7 @@
         transform: translateY(1px);
       }
 
-      .refresh-button, .mode-toggle {
+      .refresh-button, .mode-toggle, .eval-mode-toggle {
         padding: 8px 15px;
       }
 
@@ -534,6 +557,14 @@
       }
 
       .mode-toggle:hover {
+        background-color: var(--primary);
+      }
+
+      .eval-mode-toggle {
+        background-color: var(--primary-dark);
+      }
+
+      .eval-mode-toggle:hover {
         background-color: var(--primary);
       }
 
@@ -810,6 +841,7 @@
       <div class="header-controls">
         <button class="button refresh-button" id="refresh-button">Refresh</button>
         <button class="button mode-toggle" id="mode-toggle">Overlay Mode</button>
+        <button class="button eval-mode-toggle" id="eval-mode-toggle">Evaluation Mode</button>
         <button class="settings-button" id="settings-button" title="Settings">⚙️</button>
       </div>
     </div>
@@ -1203,6 +1235,7 @@
 
       let currentFEN = '';
       let boardFlipped = false;
+      let evaluationMode = false;
 
       let currentAnalysisData = null;
       let selectedLine = 0;
@@ -1424,6 +1457,7 @@
 
     clearArrows();
     clearHighlights();
+    clearMoveIndicators();
 
     const allLines = document.querySelectorAll('.line');
     allLines.forEach(line => line.classList.remove('active'));
@@ -1432,7 +1466,29 @@
     const movesToShow = Math.min(3, currentAnalysisData.topMoves.length);
     bmLog("Drawing arrows for top " + movesToShow + " moves");
 
-    const startingColor = currentAnalysisData.turnColor || 'w'; 
+    const startingColor = currentAnalysisData.turnColor || 'w';
+
+    if (evaluationMode) {
+      for (let i = 0; i < movesToShow; i++) {
+        const move = currentAnalysisData.topMoves[i];
+        if (!move || !move.move || move.move.length < 4) continue;
+        const from = move.move.substring(0,2);
+        const to = move.move.substring(2,4);
+        let color = sequenceColors.first;
+        if (i === 1) color = sequenceColors.second; else if (i === 2) color = sequenceColors.third;
+        let evalText;
+        if (move.mate !== null) {
+          const mateIn = Math.abs(move.mate);
+          evalText = move.mate > 0 ? 'M' + mateIn : '-M' + mateIn;
+        } else {
+          const cpEval = move.cp / 100;
+          evalText = (cpEval >= 0 ? '+' : '') + cpEval.toFixed(2);
+        }
+        addMoveIndicator(from, color);
+        addMoveIndicator(to, color, evalText);
+      }
+      return;
+    }
 
     for (let i = 0; i < movesToShow; i++) {
       const move = currentAnalysisData.topMoves[i];
@@ -1516,6 +1572,18 @@
       const modeToggle = document.getElementById('mode-toggle');
       modeToggle.addEventListener('click', () => {
         window.opener.postMessage({ type: 'bettermint-toggle-mode' }, '*');
+      });
+
+      const evalModeToggle = document.getElementById('eval-mode-toggle');
+      evalModeToggle.addEventListener('click', () => {
+        evaluationMode = !evaluationMode;
+        evalModeToggle.textContent = evaluationMode ? 'Arrow Mode' : 'Evaluation Mode';
+        if (evaluationMode) {
+          clearArrows();
+        } else {
+          clearMoveIndicators();
+        }
+        showBestMoves();
       });
 
       const refreshButton = document.getElementById('refresh-button');
@@ -1992,6 +2060,26 @@
       highlights.forEach(highlight => {
         highlight.remove();
       });
+    }
+
+    function clearMoveIndicators() {
+      const indicators = document.querySelectorAll('.move-indicator, .eval-label');
+      indicators.forEach(ind => ind.remove());
+    }
+
+    function addMoveIndicator(square, color, evalText = null) {
+      const squareElement = document.querySelector(".square[data-square='" + square + "']");
+      if (!squareElement) return;
+      const indicator = document.createElement('div');
+      indicator.className = 'move-indicator';
+      indicator.style.backgroundColor = color;
+      squareElement.appendChild(indicator);
+      if (evalText !== null) {
+        const label = document.createElement('div');
+        label.className = 'eval-label';
+        label.textContent = evalText;
+        squareElement.appendChild(label);
+      }
     }
 
     function showBestMoves() {
@@ -2591,28 +2679,49 @@
       }
 
       const movesToShow = Math.min(3, analysisData.topMoves.length);
-      for (let i = 0; i < movesToShow; i++) {
-        const move = analysisData.topMoves[i];
-        if (!move || !move.move) continue;
-
-        const from = move.move.substring(0, 2);
-        const to = move.move.substring(2, 4);
-
-        if (i === 0) {
-          highlightSquare(from, 'rgba(66, 165, 245, 0.4)'); 
-          highlightSquare(to, 'rgba(66, 165, 245, 0.6)');   
+      if (evaluationMode) {
+        for (let i = 0; i < movesToShow; i++) {
+          const move = analysisData.topMoves[i];
+          if (!move || !move.move || move.move.length < 4) continue;
+          const from = move.move.substring(0,2);
+          const to = move.move.substring(2,4);
+          let color = sequenceColors.first;
+          if (i === 1) color = sequenceColors.second; else if (i === 2) color = sequenceColors.third;
+          let evalText;
+          if (move.mate !== null) {
+            const mateIn = Math.abs(move.mate);
+            evalText = move.mate > 0 ? 'M' + mateIn : '-M' + mateIn;
+          } else {
+            const cpEval = move.cp / 100;
+            evalText = (cpEval >= 0 ? '+' : '') + cpEval.toFixed(2);
+          }
+          addMoveIndicator(from, color);
+          addMoveIndicator(to, color, evalText);
         }
+      } else {
+        for (let i = 0; i < movesToShow; i++) {
+          const move = analysisData.topMoves[i];
+          if (!move || !move.move) continue;
 
-        let arrowColor = '';
-        switch(i) {
-          case 0: arrowColor = sequenceColors.first; break;
-          case 1: arrowColor = sequenceColors.second; break;
-          case 2: arrowColor = sequenceColors.third; break;
-        }
+          const from = move.move.substring(0, 2);
+          const to = move.move.substring(2, 4);
 
-        const arrow = drawArrow(from, to, arrowColor, 6 - i);
-        if (arrow) {
-          arrow.style.opacity = (1 - (i * 0.15));
+          if (i === 0) {
+            highlightSquare(from, 'rgba(66, 165, 245, 0.4)');
+            highlightSquare(to, 'rgba(66, 165, 245, 0.6)');
+          }
+
+          let arrowColor = '';
+          switch(i) {
+            case 0: arrowColor = sequenceColors.first; break;
+            case 1: arrowColor = sequenceColors.second; break;
+            case 2: arrowColor = sequenceColors.third; break;
+          }
+
+          const arrow = drawArrow(from, to, arrowColor, 6 - i);
+          if (arrow) {
+            arrow.style.opacity = (1 - (i * 0.15));
+          }
         }
       }
 
@@ -3084,13 +3193,34 @@
   function showArrowsForPosition(index) {
     clearArrows();
     clearHighlights();
+    clearMoveIndicators();
 
     const analysisData = analysisHistory[index];
     if (!analysisData || !analysisData.topMoves || analysisData.topMoves.length === 0) {
       return;
     }
 
-    const movesToShow = Math.min(3, analysisData.topMoves.length);
+  const movesToShow = Math.min(3, analysisData.topMoves.length);
+  if (evaluationMode) {
+    for (let i = 0; i < movesToShow; i++) {
+      const move = analysisData.topMoves[i];
+      if (!move || !move.move || move.move.length < 4) continue;
+      const from = move.move.substring(0,2);
+      const to = move.move.substring(2,4);
+      let color = sequenceColors.first;
+      if (i === 1) color = sequenceColors.second; else if (i === 2) color = sequenceColors.third;
+      let evalText;
+      if (move.mate !== null) {
+        const mateIn = Math.abs(move.mate);
+        evalText = move.mate > 0 ? 'M' + mateIn : '-M' + mateIn;
+      } else {
+        const cpEval = move.cp / 100;
+        evalText = (cpEval >= 0 ? '+' : '') + cpEval.toFixed(2);
+      }
+      addMoveIndicator(from, color);
+      addMoveIndicator(to, color, evalText);
+    }
+  } else {
     for (let i = 0; i < movesToShow; i++) {
       const move = analysisData.topMoves[i];
       if (!move || !move.move) continue;
@@ -3115,6 +3245,7 @@
         arrow.style.opacity = (1 - (i * 0.15));
       }
     }
+  }
 
     updateLinesDisplay(analysisData);
   }
