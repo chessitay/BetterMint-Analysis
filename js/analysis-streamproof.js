@@ -2090,6 +2090,7 @@
 
     clearArrows();
     clearHighlights();
+    clearMoveIndicators();
 
     const allLines = document.querySelectorAll('.line');
     allLines.forEach(line => line.classList.remove('active'));
@@ -2098,7 +2099,29 @@
     const movesToShow = Math.min(3, currentAnalysisData.topMoves.length);
     bmLog("Drawing arrows for top " + movesToShow + " moves");
 
-    const startingColor = currentAnalysisData.turnColor || 'w'; 
+    const startingColor = currentAnalysisData.turnColor || 'w';
+
+    if (evaluationMode) {
+      for (let i = 0; i < movesToShow; i++) {
+        const move = currentAnalysisData.topMoves[i];
+        if (!move || !move.move || move.move.length < 4) continue;
+        const from = move.move.substring(0,2);
+        const to = move.move.substring(2,4);
+        let color = sequenceColors.first;
+        if (i === 1) color = sequenceColors.second; else if (i === 2) color = sequenceColors.third;
+        let evalText;
+        if (move.mate !== null) {
+          const mateIn = Math.abs(move.mate);
+          evalText = move.mate > 0 ? 'M' + mateIn : '-M' + mateIn;
+        } else {
+          const cpEval = move.cp / 100;
+          evalText = (cpEval >= 0 ? '+' : '') + cpEval.toFixed(2);
+        }
+        addMoveIndicator(from, color);
+        addMoveIndicator(to, color, evalText);
+      }
+      return;
+    }
 
     for (let i = 0; i < movesToShow; i++) {
       const move = currentAnalysisData.topMoves[i];
@@ -2118,15 +2141,15 @@
       bmLog("Drawing move " + i + ": " + from + " -> " + to);
 
       if (i === 0) {
-        highlightSquare(from, 'rgba(66, 165, 245, 0.4)'); 
-        highlightSquare(to, 'rgba(66, 165, 245, 0.6)');   
+        highlightSquare(from, 'rgba(66, 165, 245, 0.4)');
+        highlightSquare(to, 'rgba(66, 165, 245, 0.6)');
       }
 
       let arrowColor = '';
       switch(i) {
-        case 0: arrowColor = sequenceColors.first; break;  
-        case 1: arrowColor = sequenceColors.second; break; 
-        case 2: arrowColor = sequenceColors.third; break;  
+        case 0: arrowColor = sequenceColors.first; break;
+        case 1: arrowColor = sequenceColors.second; break;
+        case 2: arrowColor = sequenceColors.third; break;
       }
 
       const arrow = drawArrow(from, to, arrowColor, 6 - i);
@@ -2160,7 +2183,7 @@
 
             bmLog("Drawing opponent response for move " + i + ": " + opFrom + " -> " + opTo);
 
-            const fadeIntensity = 0.3; 
+            const fadeIntensity = 0.3;
             const opArrowColor = getFadedColor(sequenceColors.opponent, fadeIntensity);
 
             const opArrow = drawArrow(opFrom, opTo, opArrowColor, 4);
